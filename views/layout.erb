@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en-ZA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= Mise::NAME %> — the recruitment coordinator's toolkit</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">◧</span> <%= Mise::NAME %></a>
+    <p class="tagline">Everything in its place for coordinators and sourcers. Pick operations, stack them into a recipe, bake.</p>
+    <p class="privacy" title="Text is processed in memory for one request and never written to disk, a database or the address bar.">Nothing you paste is stored</p>
+  </header>
+  <%== yield %>
+</body>
+</html>

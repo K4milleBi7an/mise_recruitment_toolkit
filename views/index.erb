@@ -1,0 +1,149 @@
+<form class="bench" method="post" action="/" autocomplete="off">
+  <%# Pressing Enter in any field submits the first button in the form, so make that one "Bake". %>
+  <button class="visually-hidden" type="submit" name="do" value="bake" tabindex="-1" aria-hidden="true">Bake</button>
+
+  <section class="pane operations" aria-labelledby="ops-title">
+    <h2 id="ops-title">Operations</h2>
+    <div class="pane-body">
+      <% Toolkit.categories.each do |category, operations| %>
+        <details open>
+          <summary><%= category %> <span class="count"><%= operations.size %></span></summary>
+          <ul>
+            <% operations.each do |operation| %>
+              <li>
+                <button class="op" type="submit" name="do" value="add:<%= operation.id %>">
+                  <span class="op-name"><%= operation.name %></span>
+                  <span class="op-about"><%= operation.description %></span>
+                </button>
+              </li>
+            <% end %>
+          </ul>
+        </details>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="pane recipe" aria-labelledby="recipe-title">
+    <h2 id="recipe-title">Recipe <span class="count"><%= @recipe.steps.size %></span></h2>
+    <div class="pane-body">
+      <% if @recipe.empty? %>
+        <div class="empty">
+          <p><strong>Your recipe is empty.</strong> Add an operation from the left, or start from one of these:</p>
+          <ul class="presets">
+            <% Mise::PRESETS.each do |id, preset| %>
+              <li><a href="/?preset=<%= id %>"><strong><%= preset.title %></strong><span><%= preset.blurb %></span></a></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <ol class="steps">
+        <% @recipe.steps.each_with_index do |step, index| %>
+          <% report = @result&.reports&.at(index) %>
+          <li class="step <%= report&.status %><%= ' off' if step.off %>">
+            <input type="hidden" name="steps[<%= index %>][op]" value="<%= step.operation.id %>">
+            <header>
+              <span class="step-number"><%= index + 1 %></span>
+              <h3><%= step.operation.name %></h3>
+              <div class="step-tools">
+                <button type="submit" name="do" value="up:<%= index %>" title="Move up" aria-label="Move step <%= index + 1 %> up" <%= 'disabled' if index.zero? %>>↑</button>
+                <button type="submit" name="do" value="down:<%= index %>" title="Move down" aria-label="Move step <%= index + 1 %> down" <%= 'disabled' if index == @recipe.steps.size - 1 %>>↓</button>
+                <button type="submit" name="do" value="remove:<%= index %>" title="Remove" aria-label="Remove step <%= index + 1 %>" class="danger">✕</button>
+              </div>
+            </header>
+
+            <% unless step.operation.args.empty? %>
+              <div class="args">
+                <% step.operation.args.each do |arg| %>
+                  <% value = step.args[arg.key]; id = field_id(index, arg.key); name = field(index, arg.key) %>
+                  <% case arg.type when :checkbox %>
+                    <label class="arg check">
+                      <input type="hidden" name="<%= name %>" value="0">
+                      <input type="checkbox" name="<%= name %>" value="1" <%= 'checked' if value == "1" %>>
+                      <%= arg.label %>
+                    </label>
+                  <% when :select %>
+                    <label class="arg" for="<%= id %>"><span><%= arg.label %></span>
+                      <select id="<%= id %>" name="<%= name %>">
+                        <% arg.option_pairs.each do |option, label| %>
+                          <option value="<%= option %>" <%= 'selected' if option == value %>><%= label %></option>
+                        <% end %>
+                      </select>
+                    </label>
+                  <% when :textarea %>
+                    <label class="arg wide" for="<%= id %>"><span><%= arg.label %></span>
+                      <textarea id="<%= id %>" name="<%= name %>" rows="6" spellcheck="false"><%= value %></textarea>
+                    </label>
+                  <% else %>
+                    <label class="arg<%= ' wide' if arg.type == :text %>" for="<%= id %>"><span><%= arg.label %></span>
+                      <input id="<%= id %>" type="<%= arg.type %>" name="<%= name %>" value="<%= value %>" placeholder="<%= arg.placeholder %>"
+                             <% if arg.type == :text && arg.options %>list="<%= id %>-list"<% end %>>
+                      <% if arg.type == :text && arg.options %>
+                        <datalist id="<%= id %>-list"><% arg.option_pairs.each do |option, _| %><option value="<%= option %>"></option><% end %></datalist>
+                      <% end %>
+                    </label>
+                  <% end %>
+                  <% if arg.hint %><p class="hint"><%= arg.hint %></p><% end %>
+                <% end %>
+              </div>
+            <% end %>
+
+            <footer>
+              <label class="check small">
+                <input type="hidden" name="steps[<%= index %>][off]" value="0">
+                <input type="checkbox" name="steps[<%= index %>][off]" value="1" <%= 'checked' if step.off %>> Skip this step
+              </label>
+              <% if report %><p class="report" <%== 'role="alert"' if report.status == :error %>><%= report.message %></p><% end %>
+            </footer>
+          </li>
+        <% end %>
+      </ol>
+    </div>
+
+    <div class="pane-actions">
+      <button class="primary" type="submit" name="do" value="bake">Bake</button>
+      <% unless @recipe.empty? %>
+        <button type="submit" name="do" value="clear">Clear recipe</button>
+        <a class="share" href="/?r=<%= @recipe.encode %>" title="A link to these steps and settings. It never contains the input text.">Link to this recipe</a>
+      <% end %>
+    </div>
+  </section>
+
+  <section class="pane io" aria-label="Input and output">
+    <div class="io-block">
+      <h2><label for="input">Input</label> <span class="count"><%= count_of(@input.lines.size, "line") %></span></h2>
+      <textarea id="input" name="input" spellcheck="false" placeholder="Paste names, a CV extract, spreadsheet cells, job titles…"><%= @input %></textarea>
+    </div>
+
+    <div class="io-block">
+      <h2><label for="output">Output</label>
+        <% if @result %><span class="count"><%= count_of(@result.output.lines.size, "line") %> · <%= count_of(@result.output.length, "character") %></span><% end %>
+      </h2>
+      <textarea id="output" readonly spellcheck="false" placeholder="Baked output appears here."><%= @result&.output %></textarea>
+      <div class="pane-actions">
+        <button type="button" id="copy" hidden>Copy output</button>
+        <button type="submit" name="do" value="download">Download .txt</button>
+        <button type="submit" name="do" value="swap" title="Moves the output into the input box and starts a fresh recipe">Use as new input</button>
+      </div>
+      <% links = links_in(@result&.output) %>
+      <% unless links.empty? %>
+        <ul class="links" aria-label="Links in the output">
+          <% links.each do |link| %>
+            <li><a href="<%= link %>" target="_blank" rel="noopener noreferrer"><%= link %></a></li>
+          <% end %>
+        </ul>
+      <% end %>
+    </div>
+  </section>
+</form>
+
+<%# The only JavaScript in the app: a copy button, shown only when scripts are on. %>
+<script>
+  const copy = document.getElementById("copy");
+  copy.hidden = false;
+  copy.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(document.getElementById("output").value);
+    copy.textContent = "Copied";
+    setTimeout(() => (copy.textContent = "Copy output"), 1500);
+  });
+</script>
